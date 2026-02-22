@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="mobile-web-app-capable" content="yes">
-<title>麻雀スコア</title>
+<title>ダンナの麻雀スコア集計</title>
 <style>
   * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
   html, body { 
@@ -179,12 +179,22 @@ function SettingsScreen({ settings, onSave, onBack }) {
 // ── Score Input Screen ──
 function ScoreInputScreen({ settings, onSubmit, onBack, editData }) {
   const [scores, setScores] = useState(editData ? editData.scores : [25000, 25000, 25000, 25000]);
-  const [inputs, setInputs] = useState(editData ? editData.scores.map(s => s / 100) : [250, 250, 250, 250]);
+  const [inputs, setInputs] = useState(editData ? editData.scores.map(s => String(s / 100)) : ["250", "250", "250", "250"]);
   const [error, setError] = useState("");
 
+  const parseInput = (v) => {
+    if (v === "" || v === "-") return 0;
+    return parseInt(v, 10) || 0;
+  };
+
   const updateInput = (i, v) => {
-    const inp = [...inputs]; inp[i] = parseInt(v) || 0; setInputs(inp);
-    const s = [...scores]; s[i] = inp[i] * 100; setScores(s); setError("");
+    // 数字・マイナス記号のみ許可
+    if (v !== "" && v !== "-" && !/^-?\d+$/.test(v)) return;
+    // 先頭ゼロ除去（-0は許可、00xは防止）
+    if (v.length > 1 && v[0] === "0") v = String(parseInt(v, 10) || 0);
+    if (v.length > 2 && v.startsWith("-0") && v[2] !== undefined) v = "-" + String(parseInt(v.slice(1), 10) || 0);
+    const inp = [...inputs]; inp[i] = v; setInputs(inp);
+    const s = [...scores]; s[i] = parseInput(v) * 100; setScores(s); setError("");
   };
   const snapScore = (i) => { const s = [...scores]; s[i] = Math.round(s[i] / 100) * 100; setScores(s); };
   const autoCalc = (index) => {
@@ -192,7 +202,7 @@ function ScoreInputScreen({ settings, onSubmit, onBack, editData }) {
     const others = scores.reduce((sum, s, i) => (i !== index ? sum + s : sum), 0);
     const remain = expectedTotal - others;
     const s = [...scores]; s[index] = remain; setScores(s);
-    const inp = [...inputs]; inp[index] = remain / 100; setInputs(inp);
+    const inp = [...inputs]; inp[index] = String(remain / 100); setInputs(inp);
     setError("");
   };
 
@@ -216,7 +226,8 @@ function ScoreInputScreen({ settings, onSubmit, onBack, editData }) {
           {settings.players.map((p, i) => (
             <div key={i} style={styles.inputRow}>
               <span style={styles.inputLabel}>{p}</span>
-              <input style={styles.input} type="number" value={inputs[i]} onChange={(e) => updateInput(i, e.target.value)} />
+              <input style={styles.input} type="text" inputMode="numeric" pattern="-?[0-9]*" value={inputs[i]} onChange={(e) => updateInput(i, e.target.value)} />
+              <button style={styles.pmBtn} onClick={() => { const inp = [...inputs]; const s = [...scores]; const cur = parseInput(inp[i]); inp[i] = String(-cur); setInputs(inp); s[i] = -cur * 100; setScores(s); }}>±</button>
               <span style={{ fontSize: 13, color: "#64748b", flexShrink: 0 }}>00</span>
               <button style={styles.autoBtn} onClick={() => autoCalc(i)}>自動</button>
             </div>
@@ -490,7 +501,7 @@ function MahjongApp() {
   useEffect(() => {
     const data = loadData();
     if (data) {
-      if (data.settings) setSettings(data.settings);
+      if (data.settings) setSettings({ ...DEFAULT_SETTINGS, ...data.settings });
       if (data.sessions) setSessions(data.sessions);
       if (data.chipRecords) setChipRecords(data.chipRecords);
     }
@@ -544,7 +555,10 @@ function MahjongApp() {
     <div style={styles.screen}>
       <div style={styles.header}>
         <div style={{ width: 40 }} />
-        <h1 style={styles.headerTitle}><span style={{ fontSize: 20 }}>🀄</span> 麻雀スコア</h1>
+        <div style={{ textAlign: "center", lineHeight: 1.4 }}>
+          <h1 style={{ fontSize: 15, fontWeight: 800, margin: 0, color: "#f1f5f9", letterSpacing: "0.03em" }}>🀄 ダンナの麻雀スコア集計</h1>
+          <p style={{ fontSize: 10, margin: "2px 0 0", color: "#64748b", letterSpacing: "0.05em" }}>〜徹マンはほどほどにしろよ〜</p>
+        </div>
         <button style={styles.headerBtn} onClick={() => setScreen("settings")}><Icon name="settings" /></button>
       </div>
 
@@ -580,7 +594,7 @@ function MahjongApp() {
           <div style={{ textAlign: "center", padding: "48px 20px", color: "#64748b" }}>
             <div style={{ fontSize: 40, marginBottom: 12 }}>🀄</div>
             <p style={{ fontSize: 15, fontWeight: 500, marginBottom: 4 }}>まだ対局がありません</p>
-            <p style={{ fontSize: 13 }}>下の「半荘を追加」から結果を記録しましょう</p>
+            <p style={{ fontSize: 13 }}>今日も負けたら記録しなさいよ？</p>
           </div>
         )}
       </div>
@@ -634,6 +648,10 @@ const styles = {
   autoBtn: {
     background: "rgba(56,189,248,0.12)", border: "1px solid rgba(56,189,248,0.25)",
     borderRadius: 8, padding: "8px 12px", color: "#38bdf8", fontSize: 12, fontWeight: 700, cursor: "pointer", flexShrink: 0,
+  },
+  pmBtn: {
+    background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.12)",
+    borderRadius: 8, padding: "8px 10px", color: "#94a3b8", fontSize: 14, fontWeight: 700, cursor: "pointer", flexShrink: 0,
   },
   primaryBtn: {
     width: "100%", padding: "14px",
